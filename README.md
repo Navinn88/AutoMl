@@ -44,3 +44,16 @@ curl -X POST -H "Content-Type: application/json" \
      -d '{"features": [[1.0, 2.0], [3.0, 4.0]]}' \
      http://localhost:8000/predict
 ```
+
+## Running the Project
+
+1. Install dependencies (if not already installed):
+   • pip install –r requirements.txt
+
+2. Start the FastAPI server (in one terminal):
+   • python –m uvicorn server:app ––reload
+
+3. Run the evaluation (in a second terminal):
+   • python evaluate.py ––data train.csv
+
+ (Replace “train.csv” with your data file if needed.)
