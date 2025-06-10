@@ -1,4 +1,4 @@
-# Linear Regression API with LLM Model Selection
+# Automatic Machine Learning Python from Scratch
 
 A FastAPI-based machine learning service that uses Google's Gemini to intelligently select and train models for regression/classification tasks. The API supports linear regression, logistic regression, and decision tree models with advanced features like threshold optimization for classification models.
 
