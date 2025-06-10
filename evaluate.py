@@ -7,8 +7,31 @@ import sys
 from typing import Tuple, Dict
 from sklearn.model_selection import train_test_split
 
-def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-    """Calculate R², MSE, and RMSE metrics."""
+def find_optimal_threshold(y_true: np.ndarray, y_prob: np.ndarray) -> Tuple[float, float]:
+    """Find optimal probability threshold that maximizes accuracy for binary classification."""
+    thresholds = np.arange(0.1, 0.9, 0.01)
+    best_accuracy = 0
+    optimal_threshold = 0.5
+    
+    for threshold in thresholds:
+        y_pred = (y_prob >= threshold).astype(int)
+        accuracy = np.mean(y_true == y_pred)
+        
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            optimal_threshold = threshold
+    
+    return optimal_threshold, best_accuracy
+
+def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray, is_classification: bool = False, y_prob: np.ndarray = None) -> Dict[str, float]:
+    """Calculate metrics for model evaluation (classification or regression)."""
+    if is_classification:
+        return calculate_classification_metrics(y_true, y_pred, y_prob)
+    else:
+        return calculate_regression_metrics(y_true, y_pred)
+
+def calculate_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+    """Calculate R², MSE, and RMSE metrics for regression evaluation."""
     ss_total = np.sum((y_true - np.mean(y_true)) ** 2)
     ss_residual = np.sum((y_true - y_pred) ** 2)
     r2 = 1 - (ss_residual / ss_total)
@@ -16,12 +39,50 @@ def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float
     rmse = np.sqrt(mse)
     return { 'r2_score': float(r2), 'mse': float(mse), 'rmse': float(rmse) }
 
+def calculate_classification_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray = None) -> Dict[str, float]:
+    """Calculate accuracy, precision, recall, and F1-score for classification evaluation."""
+    if len(np.unique(y_true)) == 2:
+        y_true_binary = (y_true == y_true[0]).astype(int)
+        y_pred_binary = (y_pred == y_pred[0]).astype(int)
+        
+        tp = np.sum((y_true_binary == 1) & (y_pred_binary == 1))
+        fp = np.sum((y_true_binary == 0) & (y_pred_binary == 1))
+        tn = np.sum((y_true_binary == 0) & (y_pred_binary == 0))
+        fn = np.sum((y_true_binary == 1) & (y_pred_binary == 0))
+        
+        accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        
+        metrics = {
+            'accuracy': float(accuracy),
+            'precision': float(precision),
+            'recall': float(recall),
+            'f1_score': float(f1_score)
+        }
+        
+        if y_prob is not None:
+            optimal_threshold, optimal_accuracy = find_optimal_threshold(y_true_binary, y_prob)
+            metrics['optimal_threshold'] = float(optimal_threshold)
+            metrics['optimal_accuracy'] = float(optimal_accuracy)
+        
+        return metrics
+    else:
+        accuracy = np.mean(y_true == y_pred)
+        return {
+            'accuracy': float(accuracy),
+            'precision': 0.0,
+            'recall': 0.0,
+            'f1_score': 0.0
+        }
+
 def split_data(X: np.ndarray, y: np.ndarray, test_size: float = 0.2, random_state: int = 42) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Split data into training and testing sets (80% train, 20% test)."""
+    """Split data into training and testing sets using sklearn's train_test_split."""
     return train_test_split(X, y, test_size=test_size, random_state=random_state)
 
 def train_and_evaluate(data_file: str, server_url: str = "http://localhost:8000") -> Dict[str, float]:
-    """Train model on 80% of data and evaluate on the remaining 20%."""
+    """Train model on training data and evaluate performance on test set."""
     try:
         print("Loading data...")
         X, y = load_and_clean_data(data_file)
@@ -38,11 +99,25 @@ def train_and_evaluate(data_file: str, server_url: str = "http://localhost:8000"
         predict_response = requests.post(f"{server_url}/predict", json={'features': X_test.tolist()}, headers={'Content-Type': 'application/json'})
         predict_response.raise_for_status()
         y_pred = np.array(predict_response.json()['predictions'])
-        metrics = calculate_metrics(y_test, y_pred)
+        
+        is_classification = len(np.unique(y)) <= 10
+        
+        metrics = calculate_metrics(y_test, y_pred, is_classification)
+        
         print("\nModel Performance Metrics:")
-        print(f"R² Score: {metrics['r2_score']:.4f}")
-        print(f"MSE: {metrics['mse']:.4f}")
-        print(f"RMSE: {metrics['rmse']:.4f}")
+        if is_classification:
+            print(f"Accuracy: {metrics['accuracy']:.4f}")
+            print(f"Precision: {metrics['precision']:.4f}")
+            print(f"Recall: {metrics['recall']:.4f}")
+            print(f"F1-Score: {metrics['f1_score']:.4f}")
+            if 'optimal_threshold' in metrics:
+                print(f"Optimal Threshold: {metrics['optimal_threshold']:.3f}")
+                print(f"Optimal Accuracy: {metrics['optimal_accuracy']:.4f}")
+        else:
+            print(f"R² Score: {metrics['r2_score']:.4f}")
+            print(f"MSE: {metrics['mse']:.4f}")
+            print(f"RMSE: {metrics['rmse']:.4f}")
+        
         import os
         if os.path.exists('temp_train.csv'):
             os.remove('temp_train.csv')
