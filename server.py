@@ -33,7 +33,7 @@ y_test = None
 X_train = None
 y_train = None
 target_column = None
-GEMINI_API_KEY = "AIzaSyAqh7NHtd6z7ZkYxM6R6qOScVuSExUTLU0"
+GEMINI_API_KEY = "YOUR_API_KEY_HERE"
 
 def initialize_model(model_type: str):
     """Initialize model based on LLM selection."""
